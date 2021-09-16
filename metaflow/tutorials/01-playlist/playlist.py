@@ -53,7 +53,6 @@ class PlayListFlow(FlowSpec):
         self.dataframe = dict((column, list()) \
                               for column in columns)
 
-
         # Parse the CSV header.
         lines = self.movie_data.split('\n')
         header = lines[0].split(',')
@@ -121,7 +120,7 @@ class PlayListFlow(FlowSpec):
         self.playlist = inputs.genre_movies.movies
         self.bonus = inputs.bonus_movie.bonus
         self.next(self.end)
-        
+
     @step
     def end(self):
         """

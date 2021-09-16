@@ -52,7 +52,7 @@ class PlayListFlow(FlowSpec):
         # Create a simple data frame as a dictionary of lists.
         self.dataframe = dict((column, list()) \
                               for column in columns)
-        self.best_actor = "Simo Salminen"
+
 
         # Parse the CSV header.
         lines = self.movie_data.split('\n')
@@ -67,8 +67,13 @@ class PlayListFlow(FlowSpec):
             fields = line.rsplit(',', 4)
             for column in columns:
                 self.dataframe[column].append(fields[idx[column]])
+        self.next(self.test0)
 
+
+    @step
+    def test0(self):
         # Compute genre specific movies and a bonus movie in parallel.
+        self.best_actor = "Simo Salminen"
         self.next(self.bonus_movie, self.genre_movies)
 
     @step
@@ -120,7 +125,10 @@ class PlayListFlow(FlowSpec):
         # Reassign relevant variables from our branches.
         self.playlist = inputs.genre_movies.movies
         self.bonus = inputs.bonus_movie.bonus
+        self.next(self.test)
 
+    @step
+    def test(self):
         self.next(self.end)
 
     @step
@@ -129,7 +137,7 @@ class PlayListFlow(FlowSpec):
         Print out the playlist and bonus movie.
 
         """
-        print("Best actor: %s", self.best_actor)
+        print("Data %d", len(self.dataframe))
         print("Playlist for movies in genre '%s'" % self.genre)
         for pick, movie in enumerate(self.playlist, start=1):
             print("Pick %d: '%s'" % (pick, movie))

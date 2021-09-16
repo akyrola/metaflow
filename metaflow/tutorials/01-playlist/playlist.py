@@ -67,13 +67,8 @@ class PlayListFlow(FlowSpec):
             fields = line.rsplit(',', 4)
             for column in columns:
                 self.dataframe[column].append(fields[idx[column]])
-        self.next(self.test0)
 
-
-    @step
-    def test0(self):
         # Compute genre specific movies and a bonus movie in parallel.
-        self.best_actor = "Simo Salminen"
         self.next(self.bonus_movie, self.genre_movies)
 
     @step

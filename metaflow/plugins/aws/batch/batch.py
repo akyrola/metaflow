@@ -315,8 +315,8 @@ class Batch(object):
                         line = set_should_persist(line)
                     else:
                         line = refine(line, prefix=prefix)
-                    rank_prefix = "" if not rank else "Rank {}: ".format(rank)
-                    echo(rank_prefix + line.strip().decode('utf-8', errors='replace'), stream)
+                    rank_suffix = "" if not rank else " # rank {}".format(rank)
+                    echo(line.strip().decode('utf-8', errors='replace') + rank_suffix, stream)
             except Exception as ex:
                 echo('[ temporary error in fetching logs: %s ]' % ex,
                      'stderr',

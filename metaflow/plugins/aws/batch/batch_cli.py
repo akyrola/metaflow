@@ -236,7 +236,7 @@ def step(
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == 'local':
             sync_local_metadata_from_datastore(
-                DATASTORE_LOCAL_DIR, 
+                DATASTORE_LOCAL_DIR,
                 ctx.obj.flow_datastore.get_task_datastore(kwargs['run_id'],
                                                           step_name,
                                                           kwargs['task_id']))

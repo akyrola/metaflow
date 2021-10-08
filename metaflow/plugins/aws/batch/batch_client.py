@@ -96,8 +96,11 @@ class BatchJob(object):
             num_nodes = self._nodes
             shadow_task_container_override = copy.deepcopy(self.payload['containerOverrides'])
             # TERRIBLE HACK JUST TO TRY THIS WORKS
-            print(self.payload['containerOverrides']['command'])
-            shadow_task_container_override['command'][-1] = self.payload['containerOverrides']['command'][-1].replace("--retry-count", "--shadow-task --retry-count")
+            commands = self.payload['containerOverrides']['command'][-1]
+            commands = commands.replace("--retry-count", "--shadow-task --retry-count")
+            commands = commands.replace("mflog_stdout", "mflog_stdout MFLOG_SUFFIX=_$AWS_BATCH_JOB_NODE_INDEX ")
+            print(commands)
+            shadow_task_container_override['command'][-1] = commands
             self.payload['nodeOverrides'] = {
                 'nodePropertyOverrides': [
                     {'targetNodes': '0:0', 'containerOverrides': self.payload['containerOverrides']},

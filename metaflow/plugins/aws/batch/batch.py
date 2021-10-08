@@ -281,6 +281,7 @@ class Batch(object):
                         host_volumes=host_volumes,
                         nodes=nodes,
         )
+        self.nodes = nodes
         self.job = job.execute()
 
     def wait(self, stdout_location, stderr_location, echo=None):
@@ -306,7 +307,7 @@ class Batch(object):
 
         prefix = b'[%s] ' % util.to_bytes(self.job.id)
 
-        def _print_available(tail, stream, should_persist=False):
+        def _print_available(tail, stream, should_persist=False, rank=0):
             # print the latest batch of lines from S3Tail
             try:
                 for line in tail:
@@ -314,13 +315,19 @@ class Batch(object):
                         line = set_should_persist(line)
                     else:
                         line = refine(line, prefix=prefix)
-                    echo(line.strip().decode('utf-8', errors='replace'), stream)
+                    rank_prefix = "" if not rank else "Rank {}: ".format(rank)
+                    echo(rank_prefix + line.strip().decode('utf-8', errors='replace'), stream)
             except Exception as ex:
                 echo('[ temporary error in fetching logs: %s ]' % ex,
                      'stderr',
                      batch_id=self.job.id)
-        stdout_tail = S3Tail(stdout_location)
-        stderr_tail = S3Tail(stderr_location)
+
+        def with_node_suffix(s, rank):
+            s = s if rank == 0 else s.replace(".log", "_{}.log".format(rank))
+            print(s)
+            return s
+        stdout_tails = [S3Tail(with_node_suffix(stdout_location, rank)) for rank in range(self.nodes)]
+        stderr_tails = [S3Tail(with_node_suffix(stderr_location, rank)) for rank in range(self.nodes)]
 
         # 1) Loop until the job has started
         wait_for_launch(self.job)
@@ -333,8 +340,9 @@ class Batch(object):
 
         while is_running:
             if time.time() > next_log_update:
-                _print_available(stdout_tail, 'stdout')
-                _print_available(stderr_tail, 'stderr')
+                for rank, (stdout_tail, stderr_tail) in enumerate(zip(stdout_tails, stderr_tails)):
+                    _print_available(stdout_tail, 'stdout', rank=rank)
+                    _print_available(stderr_tail, 'stderr', rank=rank)
                 now = time.time()
                 log_update_delay = update_delay(now - start_time)
                 next_log_update = now + log_update_delay
@@ -354,8 +362,9 @@ class Batch(object):
         # TODO if we notice AWS Batch failing to upload logs to S3, we can add a
         # HEAD request here to ensure that the file exists prior to calling
         # S3Tail and note the user about truncated logs if it doesn't
-        _print_available(stdout_tail, 'stdout')
-        _print_available(stderr_tail, 'stderr')
+        for rank, (stdout_tail, stderr_tail) in enumerate(zip(stdout_tails, stderr_tails)):
+            _print_available(stdout_tail, 'stdout', rank=rank)
+            _print_available(stderr_tail, 'stderr', rank=rank)
         # In case of hard crashes (OOM), the final save_logs won't happen.
         # We fetch the remaining logs from AWS CloudWatch and persist them to
         # Amazon S3.

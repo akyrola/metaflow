@@ -21,6 +21,7 @@ def save_logs():
     ds_root = os.environ.get('MF_DATASTORE_ROOT')
     paths = (os.environ['MFLOG_STDOUT'],\
              os.environ['MFLOG_STDERR'])
+    log_suffix = os.environ.get('MFLOG_SUFFIX', '')
 
     flow_name, run_id, step_name, task_id = pathspec.split('/')
     storage_impl = DATASTORES[ds_type]
@@ -49,7 +50,8 @@ def save_logs():
         else:
             op = Path
 
-        data = {stream: op(path) for stream, path, _ in sizes}
+        data = {stream + log_suffix: op(path) for stream, path, _ in sizes}
+        print(data)
         task_datastore.save_logs(TASK_LOG_SOURCE, data)
     except:
         # Upload failing is not considered a fatal error.

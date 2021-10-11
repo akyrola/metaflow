@@ -1,4 +1,5 @@
 import os
+import copy
 import time
 import json
 import select
@@ -286,7 +287,7 @@ class Batch(object):
 
     def wait(self, stdout_location, stderr_location, echo=None):
 
-        def wait_for_launch(job):
+        def wait_for_launch(job, child_jobs):
             status = job.status
             echo('Task is starting (status %s)...' % status,
                  'stderr',
@@ -294,9 +295,15 @@ class Batch(object):
             t = time.time()
             while True:
                 if status != job.status or (time.time()-t) > 30:
+                    if not child_jobs:
+                        child_statuses = ""
+                    else:
+                        child_statuses = " (child nodes: [{}])".format(
+                            ", ".join([child_job.status for child_job in child_jobs]))
+
                     status = job.status
                     echo(
-                        'Task is starting (status %s)...' % status,
+                        'Task is starting (status %s)... %s' % (status, child_statuses),
                         'stderr',
                         batch_id=job.id
                     )
@@ -329,16 +336,31 @@ class Batch(object):
         stdout_tails = [S3Tail(with_node_suffix(stdout_location, rank)) for rank in range(self.nodes)]
         stderr_tails = [S3Tail(with_node_suffix(stderr_location, rank)) for rank in range(self.nodes)]
 
+        child_jobs = []
+        if self.nodes > 1:
+            for node in range(1, self.nodes):
+                child_job = copy.copy(self.job)
+                child_job._id = child_job.id + "#{}".format(node)
+                child_jobs.append(child_job)
+
         # 1) Loop until the job has started
-        wait_for_launch(self.job)
+        wait_for_launch(self.job, child_jobs)
 
         # 2) Loop until the job has finished
         start_time = time.time()
         is_running = True
         next_log_update = start_time
         log_update_delay = 1
+        next_child_job_update = start_time
+        child_job_update_delay = 20
 
         while is_running:
+            # Keep on updating child jobs
+            if child_jobs and not all(child_job.is_running for child_job in child_jobs):
+                if time.time() > next_child_job_update:
+                    next_child_job_update =  time.time() + log_update_delay
+                print("Child job status: {}".format([child_job.status for child_job in child_jobs]))
+
             if time.time() > next_log_update:
                 for rank, (stdout_tail, stderr_tail) in enumerate(zip(stdout_tails, stderr_tails)):
                     _print_available(stdout_tail, 'stdout', rank=rank)

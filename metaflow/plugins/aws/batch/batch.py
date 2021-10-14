@@ -331,7 +331,6 @@ class Batch(object):
 
         def with_node_suffix(s, rank):
             s = s if rank == 0 else s.replace(".log", "_{}.log".format(rank))
-            print(s)
             return s
         stdout_tails = [S3Tail(with_node_suffix(stdout_location, rank)) for rank in range(self.nodes)]
         stderr_tails = [S3Tail(with_node_suffix(stderr_location, rank)) for rank in range(self.nodes)]
@@ -340,7 +339,7 @@ class Batch(object):
         if self.nodes > 1:
             for node in range(1, self.nodes):
                 child_job = copy.copy(self.job)
-                child_job._id = child_job.id + "#{}".format(node)
+                child_job._id = child_job._id + "#{}".format(node)
                 child_jobs.append(child_job)
 
         # 1) Loop until the job has started
@@ -358,8 +357,8 @@ class Batch(object):
             # Keep on updating child jobs
             if child_jobs and not all(child_job.is_running for child_job in child_jobs):
                 if time.time() > next_child_job_update:
-                    next_child_job_update =  time.time() + log_update_delay
-                print("Child job status: {}".format([child_job.status for child_job in child_jobs]))
+                    next_child_job_update = time.time() + child_job_update_delay
+                    print("Child job status: {}".format(["{}:{}".format(child_job.id, child_job.status) for child_job in child_jobs]))
 
             if time.time() > next_log_update:
                 for rank, (stdout_tail, stderr_tail) in enumerate(zip(stdout_tails, stderr_tails)):

@@ -36,8 +36,17 @@ class BatchParallel:
         self._initialized = True
 
 
+def setup_torch_distributed(num_local_devices):
+    os.environ["MASTER_PORT"] = "64398"  # arbitrary
+    os.environ["MASTER_ADDR"] = str(get_main_node_ip())
+    os.environ["NODE_RANK"] = str(get_node_index())
+    os.environ["WORLD_SIZE"] = str(get_world_size(num_local_devices))
+    os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
+    os.environ["METAFLOW_SHADOW_TASK"] = "1"
+
 def get_number_of_nodes():
     return int(os.getenv('AWS_BATCH_JOB_NUM_NODES', '1'))
+
 
 def get_node_index():
     return int(os.getenv('AWS_BATCH_JOB_NODE_INDEX', '0'))

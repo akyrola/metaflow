@@ -99,7 +99,7 @@ class BatchJob(object):
             commands = self.payload['containerOverrides']['command'][-1]
             commands = commands.replace("--retry-count", "--shadow-task --retry-count")
             commands = commands.replace("mflog_stdout", "mflog_stdout MFLOG_SUFFIX=_$AWS_BATCH_JOB_NODE_INDEX ")
-            print(commands)
+
             shadow_task_container_override['command'][-1] = commands
             self.payload['nodeOverrides'] = {
                 'nodePropertyOverrides': [
@@ -447,6 +447,7 @@ class RunningJob(object):
     def __repr__(self):
         return '{}(\'{}\')'.format(self.__class__.__name__, self._id)
 
+
     def _apply(self, data):
         self._data = data
 
@@ -534,7 +535,6 @@ class RunningJob(object):
 
     @property
     def reason(self):
-        print(self.info)
         if 'container' in self.info:
             # single-node job
             return self.info['container'].get('reason')

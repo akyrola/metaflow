@@ -45,7 +45,7 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
-        self.shadow_task = shadow_task
+        self.shadow_task = shadow_task or os.getenv("METAFLOW_SHADOW_TASK") == "1"
 
     def _exec_step_function(self, step_function, input_obj=None):
         self.environment.validate_environment(echo=self.console_logger)
@@ -251,8 +251,6 @@ class MetaflowTask(object):
                  split_index,
                  retry_count,
                  max_user_code_retries):
-
-        print("Shadow task", self.shadow_task)
 
         if run_id and task_id:
             if not self.shadow_task:

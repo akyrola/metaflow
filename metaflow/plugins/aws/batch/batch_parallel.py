@@ -56,6 +56,7 @@ def get_main_node_index():
     return int(os.getenv('AWS_BATCH_JOB_MAIN_NODE_INDEX', '0'))
 
 
+
 def is_main_rank(local_rank):
     return local_rank == 0 and get_main_node_index() == get_node_index()
 

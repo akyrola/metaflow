@@ -79,7 +79,7 @@ class S3Object(object):
 
     def __init__(
                  self, prefix, url, path,
-                 size=None, content_type=None, metadata=None, range_info=None):
+                 size=None, content_type=None, metadata=None, range_info=None, last_modified=None):
 
         # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
@@ -89,6 +89,7 @@ class S3Object(object):
         self._path = path
         self._key = None
         self._content_type = content_type
+        self._last_modified = last_modified
 
         self._metadata = None
         if metadata is not None and 'metaflow-user-attributes' in metadata:
@@ -218,6 +219,14 @@ class S3Object(object):
         """
         return self._range_info
 
+    @property
+    def last_modified(self):
+        """
+        Returns the last modified unix timestamp of the object, or None
+        if not fetched.
+        """
+        return self._last_modified
+
     def __str__(self):
         if self._path:
             return '<S3Object %s (%d bytes, local)>' % (self._url, self._size)
@@ -336,6 +345,28 @@ class S3(object):
                     self._tmpdir = None
         except:
             pass
+
+    @property
+    def checkpoint_url(self):
+        """
+        Return URL of the S3 prefix for checkpoints for the run.
+        """
+        return os.path.join(self._s3root, "checkpoints")
+
+    def latest_checkpoint_url(self):
+        """
+        Returns URL to the latest checkpoint, based on timestamp of files in the
+        checkpoints/ prefix of the run's data.
+
+        If there are no checkpoints, None is returned.
+        """
+        checkpoints = self.list_paths(['checkpoints'])
+        if not checkpoints:
+            return None
+        if len(checkpoints) == 1:
+            return checkpoints[0].url
+        with_infos = self.info_many(["checkpoints/" + cpt.key for cpt in checkpoints])
+        return max(with_infos, key=lambda info: info.last_modified).url
 
     def _url(self, key_value):
         # NOTE: All URLs are handled as Unicode objects (unicode in py2,
@@ -466,7 +497,8 @@ class S3(object):
             return {
                 'content_type': resp['ContentType'],
                 'metadata': resp['Metadata'],
-                'size': resp['ContentLength']}
+                'size': resp['ContentLength'],
+                'last_modified': resp['LastModified'].timestamp()}
 
         info_results = None
         try:
@@ -482,7 +514,8 @@ class S3(object):
                 path=None,
                 size=info_results['size'],
                 content_type=info_results['content_type'],
-                metadata=info_results['metadata'])
+                metadata=info_results['metadata'],
+                last_modified=info_results['last_modified'])
         return S3Object(self._s3root, url, None)
 
     def info_many(self, keys, return_missing=False):
@@ -523,7 +556,7 @@ class S3(object):
                             raise MetaflowS3Exception("Got error: %d" % info['error'])
                     else:
                         yield self._s3root, s3url, None, \
-                            info['size'], info['content_type'], info['metadata']
+                            info['size'], info['content_type'], info['metadata'], None, info['last_modified']
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -570,7 +603,8 @@ class S3(object):
             if return_info:
                 return {
                     'content_type': resp['ContentType'],
-                    'metadata': resp['Metadata']
+                    'metadata': resp['Metadata'],
+                    'last_modified': resp['LastModified']
                 }
             return None
 
@@ -586,7 +620,8 @@ class S3(object):
             return S3Object(
                 self._s3root, url, path,
                 content_type=addl_info['content_type'],
-                metadata=addl_info['metadata'])
+                metadata=addl_info['metadata'],
+                last_modified=addl_info['last_modified'])
         return S3Object(self._s3root, url, path)
 
     def get_many(self, keys, return_missing=False, return_info=True):
@@ -956,6 +991,7 @@ class S3(object):
                         raise MetaflowS3NotFound(err_out)
                     elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
                         raise MetaflowS3AccessDenied(err_out)
+                    print(err_out)
                     time.sleep(2**i + random.randint(0, 10))
 
         return None, err_out

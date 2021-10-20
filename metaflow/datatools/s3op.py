@@ -105,7 +105,8 @@ def worker(result_file_name, queue, mode):
                 'error': None,
                 'size': head['ContentLength'],
                 'content_type': head['ContentType'],
-                'metadata': head['Metadata']}
+                'metadata': head['Metadata'],
+                'last_modified': head['LastModified'].timestamp()}
         except client_error as err:
             error_code = normalize_client_error(err)
             if error_code == 404:

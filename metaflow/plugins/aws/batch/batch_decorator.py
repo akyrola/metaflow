@@ -2,7 +2,7 @@ import os
 import sys
 import platform
 import re
-import tarfile
+import time
 import requests
 
 from metaflow.decorators import StepDecorator
@@ -13,13 +13,14 @@ from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 
 from metaflow import util
-from metaflow import R
+from metaflow import R, current
 
 from .batch import BatchException
 from metaflow.metaflow_config import ECS_S3_ACCESS_IAM_ROLE, BATCH_JOB_QUEUE, \
                     BATCH_CONTAINER_IMAGE, BATCH_CONTAINER_REGISTRY, \
                     ECS_FARGATE_EXECUTION_ROLE
 from metaflow.sidecar import SidecarSubProcess
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 
 class BatchDecorator(StepDecorator):
@@ -140,6 +141,8 @@ class BatchDecorator(StepDecorator):
                     my_val = self.attributes.get(k)
                     if not (my_val is None and v is None):
                         self.attributes[k] = str(max(int(my_val or 0), int(v or 0)))
+            elif deco.__class__.__name__ == "MultinodeDecorator":  # avoid circular dependency
+                self.attributes['nodes'] = deco.nodes
         self.run_time_limit = get_run_time_limit_for_task(decos)
         if self.run_time_limit < 60:
             raise BatchException('The timeout for step *{step}* should be at '
@@ -176,6 +179,8 @@ class BatchDecorator(StepDecorator):
             cli_args.command_options['run-time-limit'] = self.run_time_limit
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
+
+
 
     def task_pre_step(self,
                       step_name,
@@ -223,15 +228,15 @@ class BatchDecorator(StepDecorator):
         # Register book-keeping metadata for debugging.
         metadata.register_metadata(run_id, step_name, task_id, entries)
         self._save_logs_sidecar = SidecarSubProcess('save_logs_periodically')
+        nodes = self.attributes["nodes"]
 
-        # For multi-node tasks, self.next should be disabled for others than main node.
-        main_node_index = os.environ.get('AWS_BATCH_JOB_MAIN_NODE_INDEX', None)
-        node_index = os.environ.get('AWS_BATCH_JOB_NODE_INDEX', None)
-        if main_node_index is not None and node_index is not None:
-            if main_node_index != node_index:
-                self.next = lambda next_step: print("Next called, ignored as this worker is not main node.")
-            print("Multinode node id {} starting, main is {}".format(node_index, main_node_index))
-
+        if nodes > 1 and ubf_context == UBF_CONTROL:
+            # UBF handling for multinode case
+            control_task_id = current.task_id
+            top_task_id = control_task_id.replace("control-", "")  # chop "-0"
+            mapper_task_ids = [control_task_id] + ["%s-node-%d" % (top_task_id, node_idx) for node_idx in range(1, nodes)]
+            flow._control_mapper_tasks = ['%s/%s/%s' % (run_id, step_name, mapper_task_id) for mapper_task_id in mapper_task_ids]
+            flow._control_task_is_mapper_zero = True
 
     def task_post_step(self,
                        step_name,
@@ -265,6 +270,35 @@ class BatchDecorator(StepDecorator):
             self._save_logs_sidecar.kill()
         except:
             pass
+
+        if is_task_ok and getattr(flow, "_control_mapper_tasks", []):
+            self._wait_for_mapper_tasks(flow, step_name)
+
+    def _wait_for_mapper_tasks(self, flow, step_name):
+        """
+        When lauching multinode task with UBF, need to wait for the secondary
+        tasks to finish cleanly and produce their output before exiting the
+        main task. Otherwise main task finishing will cause secondary nodes
+        to terminate immediately, and possibly prematurely.
+        """
+        from metaflow import Step
+        t = time.time()
+        TIMEOUT = 600
+        print("Waiting for batch secondary tasks to finish")
+        while t + TIMEOUT > time.time():
+            time.sleep(2)
+            try:
+                step_path = "%s/%s/%s" % (flow.name, current.run_id, step_name)
+                tasks = [task for task in Step(step_path)]
+                if len(tasks) == len(flow._control_mapper_tasks) - 1:
+                    if all(task.finished_at is not None for task in tasks):  # for some reason task.finished fails
+                        return True
+                else:
+                    print("Not sufficient number of tasks:", len(tasks), len(flow._control_mapper_tasks))
+            except Exception as e:
+                print(e)
+                pass
+        raise Exception('Batch secondary workers did not finish in %s seconds' % TIMEOUT)
 
     @classmethod
     def _save_package_once(cls, flow_datastore, package):

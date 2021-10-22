@@ -347,6 +347,10 @@ class S3(object):
             pass
 
     @property
+    def logger_url(self):
+        return os.path.join(self._s3root, "logger")
+
+    @property
     def checkpoint_url(self):
         """
         Return URL of the S3 prefix for checkpoints for the run.
@@ -893,6 +897,7 @@ class S3(object):
             except Exception as ex:
                 # TODO specific error message for out of disk space
                 error = str(ex)
+                print(error)
             if tmp:
                 os.unlink(tmp.name)
             self._s3_client.reset_client()

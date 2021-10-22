@@ -295,6 +295,7 @@ class NativeRuntime(object):
             # Update state of (sibling) mapper tasks for control task.
             if task.ubf_context == UBF_CONTROL:
                 mapper_tasks = task.results.get('_control_mapper_tasks')
+                print(">>>> MAPPER TASKS", mapper_tasks)
                 if not mapper_tasks:
                     msg = "Step *{step}* has a control task which didn't "\
                           "specify the artifact *_control_mapper_tasks* for "\
@@ -340,6 +341,8 @@ class NativeRuntime(object):
             top = foreach_stack[-1]
             bottom = list(foreach_stack[:-1])
             s = tuple(bottom + [top._replace(index=None)])
+            if task.results.get('_control_task_is_mapper_zero', False):
+                s = tuple(bottom + [top._replace(index=0)])
             control_path = self._finished.get((task.step, s))
             if control_path:
                 # Control task was successful.
@@ -350,7 +353,8 @@ class NativeRuntime(object):
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
                     required_tasks.append(self._finished.get((task.step, s)))
-                required_tasks.append(control_path)
+                if control_path not in required_tasks:  # control task may be also split 0
+                    required_tasks.append(control_path)
 
                 if all(required_tasks):
                     # all tasks to be joined are ready. Schedule the next join step.

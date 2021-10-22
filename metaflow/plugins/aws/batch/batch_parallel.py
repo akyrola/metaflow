@@ -41,6 +41,7 @@ def setup_torch_distributed(num_local_devices):
     os.environ["MASTER_ADDR"] = str(get_main_node_ip())
     os.environ["NODE_RANK"] = str(get_node_index())
     os.environ["WORLD_SIZE"] = str(get_world_size(num_local_devices))
+    os.environ["NUM_NODES"] = str(get_number_of_nodes())
     os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
     os.environ["METAFLOW_SHADOW_TASK"] = "1"
 

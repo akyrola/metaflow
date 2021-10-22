@@ -117,6 +117,7 @@ from .aws.step_functions.step_functions_decorator \
                 import StepFunctionsInternalDecorator
 from .test_unbounded_foreach_decorator\
     import InternalTestUnboundedForeachDecorator, InternalTestUnboundedForeachInput
+from .multinode_decorator import MultinodeDecorator
 from .conda.conda_step_decorator import CondaStepDecorator
 
 STEP_DECORATORS = _merge_lists([CatchDecorator,
@@ -127,7 +128,8 @@ STEP_DECORATORS = _merge_lists([CatchDecorator,
                                 BatchDecorator,
                                 StepFunctionsInternalDecorator,
                                 CondaStepDecorator,
-                                InternalTestUnboundedForeachDecorator],
+                                InternalTestUnboundedForeachDecorator,
+                                MultinodeDecorator],
                                     _ext_plugins.STEP_DECORATORS, 'name')
 
 # Add Conda environment

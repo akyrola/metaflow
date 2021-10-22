@@ -307,7 +307,7 @@ class MetaflowTask(object):
         if input_paths:
             control_paths = [path for path in input_paths
                              if path.split('/')[-1].startswith('control-')]
-            if control_paths:
+            if control_paths and not getattr(self.flow, "_control_task_is_mapper_zero", False):
                 [control_path] = control_paths
                 input_paths.remove(control_path)
             # 2. initialize input datastores

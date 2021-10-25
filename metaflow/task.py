@@ -35,8 +35,7 @@ class MetaflowTask(object):
                  console_logger,
                  event_logger,
                  monitor,
-                 ubf_context,
-                 shadow_task=False):
+                 ubf_context):
         self.flow = flow
         self.flow_datastore = flow_datastore
         self.metadata = metadata
@@ -45,7 +44,7 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
-        self.shadow_task = shadow_task or os.getenv("METAFLOW_SHADOW_TASK") == "1"
+        self.read_only_mode = os.getenv("MF_READ_ONLY_MODE") == "1"
 
     def _exec_step_function(self, step_function, input_obj=None):
         self.environment.validate_environment(echo=self.console_logger)
@@ -253,7 +252,7 @@ class MetaflowTask(object):
                  max_user_code_retries):
 
         if run_id and task_id:
-            if not self.shadow_task:
+            if not self.read_only_mode:
                 self.metadata.register_run_id(run_id)
                 self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
         else:
@@ -268,7 +267,7 @@ class MetaflowTask(object):
                                         "MAX_ATTEMPTS exceeded." % retry_count)
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
-        if not self.shadow_task:
+        if not self.read_only_mode:
             self.metadata.register_metadata(run_id,
                                         step_name,
                                         task_id,
@@ -296,7 +295,7 @@ class MetaflowTask(object):
             join_type = self.flow._graph[node.split_parents[-1]].type
 
         # 1. initialize output datastore
-        if not self.shadow_task:
+        if not self.read_only_mode:
             output = self.flow_datastore.get_task_datastore(
                 run_id, step_name, task_id, attempt=retry_count, mode='w')
 
@@ -476,8 +475,8 @@ class MetaflowTask(object):
                 raise
 
         finally:
-            if self.shadow_task:
-                print("--- shadow task finishing")
+            if self.read_only_mode:
+                print("--- read only replica task finishing")
                 return
 
             if self.ubf_context == UBF_CONTROL:

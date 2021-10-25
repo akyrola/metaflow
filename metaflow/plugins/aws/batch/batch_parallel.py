@@ -42,7 +42,7 @@ def setup_torch_distributed(num_local_devices):
     os.environ["NODE_RANK"] = str(get_node_index())
     os.environ["WORLD_SIZE"] = str(get_world_size(num_local_devices))
     os.environ["PL_TORCH_DISTRIBUTED_BACKEND"] = "gloo"
-    os.environ["METAFLOW_SHADOW_TASK"] = "1"
+    os.environ["MF_READ_ONLY_MODE"] = "1"
 
 def get_number_of_nodes():
     return int(os.getenv('AWS_BATCH_JOB_NUM_NODES', '1'))

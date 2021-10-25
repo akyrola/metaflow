@@ -51,7 +51,6 @@ def save_logs():
             op = Path
 
         data = {stream + log_suffix: op(path) for stream, path, _ in sizes}
-        print(data)
         task_datastore.save_logs(TASK_LOG_SOURCE, data)
     except:
         # Upload failing is not considered a fatal error.

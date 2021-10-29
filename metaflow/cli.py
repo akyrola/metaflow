@@ -1,4 +1,5 @@
 import inspect
+import pickle
 import os
 import sys
 import traceback
@@ -155,6 +156,25 @@ def show(obj):
 @click.pass_context
 def help(ctx):
     print(ctx.parent.get_help())
+
+
+@cli.command(help="Internal command by metaflow to spawn workers")
+@click.argument("target_module")
+@click.argument("target_function")
+@click.argument("pickled_argument_file")
+@click.pass_context
+def spawn(ctx, target_module, target_function, pickled_argument_file):
+    try:
+        import importlib
+        kwargs = pickle.load(open(pickled_argument_file, "rb"))
+        print(kwargs)
+        module = importlib.import_module(target_module)
+        fun = getattr(module, target_function)
+        fun(**kwargs)
+    except Exception as ex:
+        print(ex)
+        raise
+
 
 
 @cli.command(help='Output internal state of the flow graph.')
@@ -873,7 +893,6 @@ def start(ctx,
     parameters.set_parameter_context(ctx.obj.flow.name,
                                         ctx.obj.echo,
                                         ctx.obj.flow_datastore)
-
     if ctx.invoked_subcommand not in ('run', 'resume'):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.

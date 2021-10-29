@@ -933,10 +933,10 @@ class S3(object):
             except Exception as ex:
                 # TODO specific error message for out of disk space
                 error = str(ex)
-                print(error)
             if tmp:
                 os.unlink(tmp.name)
             self._s3_client.reset_client()
+            print(error)
             # add some jitter to make sure retries are not synchronized
             time.sleep(2**i + random.randint(0, 10))
         raise MetaflowS3Exception("S3 operation failed.\n"\

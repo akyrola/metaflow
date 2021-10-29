@@ -238,6 +238,10 @@ class BatchDecorator(StepDecorator):
             flow._control_mapper_tasks = ['%s/%s/%s' % (run_id, step_name, mapper_task_id) for mapper_task_id in mapper_task_ids]
             flow._control_task_is_mapper_zero = True
 
+        if nodes > 1:
+            _setup_multinode_environment()
+
+
     def task_post_step(self,
                        step_name,
                        flow,
@@ -359,3 +363,17 @@ class BatchDecorator(StepDecorator):
         if registry is not None:
             registry = registry.rstrip("/")
         return registry
+
+def _setup_multinode_environment():
+    # setup the multinode environment
+    import socket
+    if "AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS" not in os.environ:
+        # we are the main node
+        local_ips = socket.gethostbyname_ex(socket.gethostname())[-1]
+        assert local_ips, "Could not find local ip address"
+        os.environ['MF_MULTINODE_MAIN_IP'] = local_ips[0]
+    else:
+        os.environ['MF_MULTINODE_MAIN_IP'] = os.environ['AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS']
+    os.environ['MF_MULTINODE_NUM_NODES'] = os.environ['AWS_BATCH_JOB_NUM_NODES']
+    os.environ['MF_MULTINODE_NODE_INDEX'] = os.environ['AWS_BATCH_JOB_NODE_INDEX']
+    print("Multinode enviroment:", {k: v for k, v in os.environ.items() if k.startswith("MF_MULTINODE")})

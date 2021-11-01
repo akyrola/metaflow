@@ -348,32 +348,6 @@ class S3(object):
         except:
             pass
 
-    @property
-    def logger_url(self):
-        return os.path.join(self._s3root, "logger")
-
-    @property
-    def checkpoint_url(self):
-        """
-        Return URL of the S3 prefix for checkpoints for the run.
-        """
-        return os.path.join(self._s3root, "checkpoints")
-
-    def latest_checkpoint_url(self):
-        """
-        Returns URL to the latest checkpoint, based on timestamp of files in the
-        checkpoints/ prefix of the run's data.
-
-        If there are no checkpoints, None is returned.
-        """
-        checkpoints = self.list_paths(['checkpoints'])
-        if not checkpoints:
-            return None
-        if len(checkpoints) == 1:
-            return checkpoints[0].url
-        with_infos = self.info_many(["checkpoints/" + cpt.key for cpt in checkpoints])
-        return max(with_infos, key=lambda info: info.last_modified).url
-
     def _url(self, key_value):
         # NOTE: All URLs are handled as Unicode objects (unicode in py2,
         # string in py3) internally. We expect that all URLs passed to this

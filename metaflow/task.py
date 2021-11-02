@@ -35,8 +35,7 @@ class MetaflowTask(object):
                  console_logger,
                  event_logger,
                  monitor,
-                 ubf_context,
-                 shadow_task=False):
+                 ubf_context):
         self.flow = flow
         self.flow_datastore = flow_datastore
         self.metadata = metadata
@@ -45,7 +44,6 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
-        self.shadow_task = shadow_task or os.getenv("METAFLOW_SHADOW_TASK") == "1"
 
     def _exec_step_function(self, step_function, input_obj=None):
         self.environment.validate_environment(echo=self.console_logger)
@@ -253,9 +251,8 @@ class MetaflowTask(object):
                  max_user_code_retries):
 
         if run_id and task_id:
-            if not self.shadow_task:
-                self.metadata.register_run_id(run_id)
-                self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
+            self.metadata.register_run_id(run_id)
+            self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
         else:
             raise MetaflowInternalError("task.run_step needs a valid run_id "
                                         "and task_id")
@@ -268,26 +265,26 @@ class MetaflowTask(object):
                                         "MAX_ATTEMPTS exceeded." % retry_count)
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
-        if not self.shadow_task:
-            self.metadata.register_metadata(run_id,
-                                        step_name,
-                                        task_id,
-                                        [MetaDatum(field='attempt',
-                                                   value=str(retry_count),
-                                                   type='attempt',
-                                                   tags=metadata_tags),
-                                         MetaDatum(field='origin-run-id',
-                                                   value=str(origin_run_id),
-                                                   type='origin-run-id',
-                                                   tags=metadata_tags),
-                                         MetaDatum(field='ds-type',
-                                                   value=self.flow_datastore.TYPE,
-                                                   type='ds-type',
-                                                   tags=metadata_tags),
-                                         MetaDatum(field='ds-root',
-                                                   value=self.flow_datastore.datastore_root,
-                                                   type='ds-root',
-                                                   tags=metadata_tags)])
+
+        self.metadata.register_metadata(run_id,
+                                    step_name,
+                                    task_id,
+                                    [MetaDatum(field='attempt',
+                                               value=str(retry_count),
+                                               type='attempt',
+                                               tags=metadata_tags),
+                                     MetaDatum(field='origin-run-id',
+                                               value=str(origin_run_id),
+                                               type='origin-run-id',
+                                               tags=metadata_tags),
+                                     MetaDatum(field='ds-type',
+                                               value=self.flow_datastore.TYPE,
+                                               type='ds-type',
+                                               tags=metadata_tags),
+                                     MetaDatum(field='ds-root',
+                                               value=self.flow_datastore.datastore_root,
+                                               type='ds-root',
+                                               tags=metadata_tags)])
 
         step_func = getattr(self.flow, step_name)
         node = self.flow._graph[step_name]
@@ -296,20 +293,12 @@ class MetaflowTask(object):
             join_type = self.flow._graph[node.split_parents[-1]].type
 
         # 1. initialize output datastore
-        if not self.shadow_task:
-            output = self.flow_datastore.get_task_datastore(
+        output = self.flow_datastore.get_task_datastore(
                 run_id, step_name, task_id, attempt=retry_count, mode='w')
 
-            output.init_task()
-        else:
-            output = None
+        output.init_task()
 
         if input_paths:
-            control_paths = [path for path in input_paths
-                             if path.split('/')[-1].startswith('control-')]
-            if control_paths and not getattr(self.flow, "_control_task_is_mapper_zero", False):
-                [control_path] = control_paths
-                input_paths.remove(control_path)
             # 2. initialize input datastores
             inputs = self._init_data(run_id, join_type, input_paths)
 
@@ -328,19 +317,17 @@ class MetaflowTask(object):
                          is_running=True)
 
         # 5. run task
-        if output:
-            output.save_metadata({'task_begin':
-                {
-                    'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
-                    'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
-                    'code_package_url': os.environ.get('METAFLOW_CODE_URL'),
-                    'retry_count': retry_count
-                }})
+        output.save_metadata({'task_begin':
+            {
+                'code_package_sha': os.environ.get('METAFLOW_CODE_SHA'),
+                'code_package_ds': os.environ.get('METAFLOW_CODE_DS'),
+                'code_package_url': os.environ.get('METAFLOW_CODE_URL'),
+                'retry_count': retry_count
+            }})
         logger = self.event_logger
         start = time.time()
 
-        if output:
-            self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
+        self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name,
                                            task_id)
         try:
             # init side cars
@@ -476,9 +463,6 @@ class MetaflowTask(object):
                 raise
 
         finally:
-            if self.shadow_task:
-                print("--- shadow task finishing")
-                return
 
             if self.ubf_context == UBF_CONTROL:
                 self._finalize_control_task()

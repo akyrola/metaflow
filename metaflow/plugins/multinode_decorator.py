@@ -1,10 +1,8 @@
 
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
-import sys
+
 from metaflow.decorators import StepDecorator
-from metaflow.util import to_unicode
-from metaflow.cli_args import cli_args
-import subprocess
+from metaflow.unbounded_foreach import UnboundedForeachInput
+
 
 class MultinodeDecorator(StepDecorator):
     name = 'multinode'

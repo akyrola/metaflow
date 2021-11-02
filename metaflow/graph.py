@@ -64,6 +64,7 @@ class DAGNode(object):
 
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
+        self.is_multinode_step = any(deco.name == "multinode" for deco in decos)
 
     def _expr_str(self, expr):
         return '%s.%s' % (expr.value.id, expr.attr)
@@ -190,6 +191,11 @@ class FlowGraph(object):
     def _traverse_graph(self):
 
         def traverse(node, seen, split_parents):
+            # check multinode
+            if len(node.out_funcs) == 1:
+                child = self[node.out_funcs[0]]
+                if child.is_multinode_step:
+                    node.type = "foreach"
 
             if node.type in ('split-or', 'split-and', 'foreach'):
                 node.split_parents = split_parents

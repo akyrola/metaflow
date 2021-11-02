@@ -28,6 +28,15 @@ class InvalidNextException(MetaflowException):
         super(InvalidNextException, self).__init__(msg, line_no)
 
 
+class Multinode(UnboundedForeachInput):
+    def __init__(self):
+        pass
+
+    def __getitem__(self, item):
+        return item
+
+
+
 class FlowSpec(object):
     """
     Main class from which all Flows should inherit.
@@ -125,6 +134,10 @@ class FlowSpec(object):
         return iter(self._steps)
 
     def __getattr__(self, name):
+        if name == "_multinode":
+            # Special multinode UBF iterator
+            return Multinode()
+
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
@@ -438,6 +451,12 @@ class FlowSpec(object):
                 raise InvalidNextException(msg)
             funcs.append(name)
 
+        # if only one dst, check if it is a multinode one
+        if len(dsts) == 1:
+            dst = dsts[0]
+            if any(deco.name == "multinode" for deco in dst.__func__.decorators):
+                foreach = "_multinode"
+
         # check: foreach and condition are mutually exclusive
         if not (foreach is None or condition is None):
             msg = "Step *{step}* has an invalid self.next() transition. "\
@@ -510,6 +529,8 @@ class FlowSpec(object):
                       "self.next().".format(step=step)
                 raise InvalidNextException(msg)
 
+        print("CURRENT STEP", step, " dst", dsts, " foreach=", foreach)
+        print("====> ", (funcs, foreach, condition))
         self._transition = (funcs, foreach, condition)
 
     def __str__(self):
@@ -539,3 +560,8 @@ class FlowSpec(object):
                                 "whole flow, you should choose specific "
                                 "attributes, e.g. *input.some_var*, to be "
                                 "stored.")
+
+
+
+
+

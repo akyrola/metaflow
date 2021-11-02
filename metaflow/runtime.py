@@ -240,6 +240,7 @@ class NativeRuntime(object):
         if ('end', ()) in self._finished:
             self._logger('Done!', system_msg=True)
         else:
+            print(self._finished)
             raise MetaflowInternalError('The *end* step was not successful '
                                         'by the end of flow.')
 
@@ -353,8 +354,9 @@ class NativeRuntime(object):
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
                     required_tasks.append(self._finished.get((task.step, s)))
-                if control_path not in required_tasks:  # control task may be also split 0
-                    required_tasks.append(control_path)
+                if task.results.get('_control_task_is_mapper_zero', False):
+                    if control_path not in required_tasks:  # control task may be also split 0
+                        required_tasks.append(control_path)
 
                 if all(required_tasks):
                     # all tasks to be joined are ready. Schedule the next join step.
@@ -432,6 +434,7 @@ class NativeRuntime(object):
     def _queue_tasks(self, finished_tasks):
         # finished tasks include only successful tasks
         for task in finished_tasks:
+            print("finished", task.finished_id, task.path)
             self._finished[task.finished_id] = task.path
             self._is_cloned[task.path] = task.is_cloned
 

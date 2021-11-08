@@ -281,6 +281,21 @@ class MetaflowTask(object):
         retry_count,
         max_user_code_retries,
     ):
+        # Prevent same task being launched multiple time as subprocess. If it is run multiple times,
+        # they are run in read only mode. This is to make metaflow work with frameworks like Pytorch
+        # which re-spawn the same binary command.
+        if os.environ.get("MF_ALREADY_RUNNING_TASK_ID", "") == task_id:
+            return self.run_step_replice(
+                step_name,
+                run_id,
+                task_id,
+                origin_run_id,
+                input_paths,
+                retry_count,
+                max_user_code_retries,
+            )
+        else:
+            os.environ["MF_ALREADY_RUNNING_TASK_ID"] = task_id
 
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
@@ -377,6 +392,7 @@ class MetaflowTask(object):
         )
         logger = self.event_logger
         start = time.time()
+
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
         try:
             # init side cars
@@ -528,6 +544,7 @@ class MetaflowTask(object):
                 raise
 
         finally:
+            del os.environ["MF_ALREADY_RUNNING_TASK_ID"]
             if self.ubf_context == UBF_CONTROL:
                 self._finalize_control_task()
 
@@ -581,3 +598,81 @@ class MetaflowTask(object):
             # terminate side cars
             logger.terminate()
             self.metadata.stop_heartbeat()
+
+    def run_step_replice(
+        self,
+        step_name,
+        run_id,
+        task_id,
+        origin_run_id,
+        input_paths,
+        retry_count,
+        max_user_code_retries,
+    ):
+        step_func = getattr(self.flow, step_name)
+        node = self.flow._graph[step_name]
+        assert node.type != "join", "Cannot run join step as read-only replica"
+        join_type = None
+
+        if input_paths:
+            # 2. initialize input datastores
+            inputs = self._init_data(run_id, join_type, input_paths)
+
+        # 4. initialize the current singleton
+        current._set_env(
+            flow_name=self.flow.name,
+            run_id=run_id,
+            step_name=step_name,
+            task_id=task_id,
+            retry_count=retry_count,
+            origin_run_id=origin_run_id,
+            namespace=resolve_identity(),
+            username=get_username(),
+            is_running=True,
+        )
+
+        try:
+            # init side cars
+
+            self.flow._current_step = step_name
+            self.flow._success = False
+            self.flow._task_ok = None
+            self.flow._exception = None
+            self.flow._set_datastore(inputs[0])
+
+            if input_paths:
+                # initialize parameters (if they exist)
+                # We take Parameter values from the first input,
+                # which is always safe since parameters are read-only
+                current._update_env(
+                    {
+                        "parameter_names": self._init_parameters(
+                            inputs[0], passdown=False
+                        )
+                    }
+                )
+
+            decorators = step_func.decorators
+            for deco in decorators:
+
+                deco.task_pre_step(
+                    step_name,
+                    None,
+                    self.metadata,
+                    run_id,
+                    task_id,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                    self.ubf_context,
+                    inputs,
+                )
+
+            self._exec_step_function(step_func)
+
+        except Exception as ex:
+            raise
+
+        finally:
+            print("Read-only replica finished.")

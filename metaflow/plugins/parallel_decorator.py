@@ -76,13 +76,13 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     top_task_id = control_task_id.replace("control-", "")  # chop "-0"
     mapper_task_ids = [control_task_id]
 
-    executable = env_to_use.executable(step_name)
+    executable = env_to_use.base_env.executable(step_name)
     script = sys.argv[0]
 
 
     # start workers
     subprocesses = []
-    for node_index in range(1, num_parallel):
+    for node_index in range(0, num_parallel):
         task_id = "%s-node-%d" % (top_task_id, node_index)
         mapper_task_ids.append(task_id)
         os.environ["MF_PARALLEL_NODE_INDEX"] = str(node_index)
@@ -113,12 +113,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         "%s/%s/%s" % (run_id, step_name, mapper_task_id)
         for mapper_task_id in mapper_task_ids
     ]
-    flow._control_task_is_mapper_zero = True
-
-    # run the step function ourselves
-    os.environ["MF_PARALLEL_NODE_INDEX"] = "0"
-    step_func()
-
+    #flow._control_task_is_mapper_zero = True
     # join the subprocesses
     for p in subprocesses:
         p.wait()

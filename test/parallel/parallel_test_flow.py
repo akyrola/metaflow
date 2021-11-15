@@ -34,6 +34,9 @@ class ParallelTest(FlowSpec):
     def multinode_end(self, inputs):
         j = 0
         for input in inputs:
+            print(input)
+        for input in inputs:
+            print(input)
             assert input.node_index == j
             assert input.num_nodes == self.num_parallel
             j += 1

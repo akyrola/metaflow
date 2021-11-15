@@ -76,7 +76,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     (_, split_step_name, split_task_id) = control_task_id.split("-")[1:]
     # UBF handling for multinode case
     top_task_id = control_task_id.replace("control-", "")  # chop "-0"
-    mapper_task_ids = [control_task_id]
+    mapper_task_ids = []
 
     env_to_use = getattr(env_to_use, "base_env", env_to_use)
     executable = env_to_use.executable(step_name)

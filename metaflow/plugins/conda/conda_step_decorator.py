@@ -81,6 +81,7 @@ class CondaStepDecorator(StepDecorator):
         )
 
     def is_enabled(self, ubf_context=None):
+        print("CONDA is_enabled", ubf_context)
         if ubf_context == UBF_CONTROL:
             # Disable `@conda` for ubf_control tasks.
             return False

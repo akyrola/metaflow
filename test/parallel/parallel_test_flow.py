@@ -1,6 +1,7 @@
 from metaflow import FlowSpec, step, batch, current, parallel, Parameter, conda_base
 
-@conda_base(python='3.6.0')
+
+@conda_base(python="3.6.0")
 class ParallelTest(FlowSpec):
     """
     Test flow to test @parallel.
@@ -13,6 +14,7 @@ class ParallelTest(FlowSpec):
     @step
     def start(self):
         import sys
+
         print("Start", sys.version)
         self.next(self.parallel_step, num_parallel=self.num_parallel)
 
@@ -21,6 +23,7 @@ class ParallelTest(FlowSpec):
     @step
     def parallel_step(self):
         import sys
+
         print("PYTHON VERSION", sys.version)
         self.node_index = current.parallel.node_index
         self.num_nodes = current.parallel.num_nodes

@@ -55,6 +55,8 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     from metaflow.unbounded_foreach import UBF_TASK
     import subprocess
 
+    print("UBF CONTROL:", sys.version)
+
     assert flow._unbounded_foreach
     foreach_iter = flow._parallel_ubf_iter
     if foreach_iter.__class__.__name__ != "ParallelUBF":
@@ -76,9 +78,9 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     top_task_id = control_task_id.replace("control-", "")  # chop "-0"
     mapper_task_ids = [control_task_id]
 
-    executable = env_to_use.base_env.executable(step_name)
+    env_to_use = getattr(env_to_use, "base_env", env_to_use)
+    executable = env_to_use.executable(step_name)
     script = sys.argv[0]
-
 
     # start workers
     subprocesses = []
@@ -96,7 +98,9 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["ubf_context"] = UBF_TASK
         kwargs["retry_count"] = str(retry_count)
 
-        step_cmds = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+        step_cmds = cli_args.step_command(
+            executable, script, step_name, step_kwargs=kwargs
+        )
 
         # Print cmdline for execution. Doesn't work without the temporary
         # unicode object while using `print`.
@@ -106,16 +110,18 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
                 cwd=os.getcwd(), split=node_index, cmd=" ".join(step_cmds)
             )
         )
-        p = subprocess.Popen(step_cmds, shell=True)
+        p = subprocess.Popen(step_cmds)
         subprocesses.append(p)
 
     flow._control_mapper_tasks = [
         "%s/%s/%s" % (run_id, step_name, mapper_task_id)
         for mapper_task_id in mapper_task_ids
     ]
-    #flow._control_task_is_mapper_zero = True
+    # flow._control_task_is_mapper_zero = True
     # join the subprocesses
+    print("Waiting for the subprocesses to finish")
     for p in subprocesses:
         p.wait()
         if p.returncode:
             raise Exception("Subprocess failed, return code {}".format(p.returncode))
+    print("Done")

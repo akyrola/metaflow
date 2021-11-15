@@ -35,12 +35,10 @@ class ParallelDecorator(StepDecorator):
         ):
             from functools import partial
 
-            env_to_use = getattr(self.environment, "base_env", self.environment)
-
             return partial(
                 _local_multinode_control_task_step_func,
                 flow,
-                env_to_use,
+                self.environment,
                 step_func,
                 retry_count,
             )
@@ -77,12 +75,10 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     # UBF handling for multinode case
     top_task_id = control_task_id.replace("control-", "")  # chop "-0"
     mapper_task_ids = [control_task_id]
-    # If we are running inside Conda, we use the base executable FIRST;
-    # the conda environment will then be used when runtime_step_cli is
-    # called. This is so that it can properly set up all the metaflow
-    # aliases needed.
+
     executable = env_to_use.executable(step_name)
     script = sys.argv[0]
+
 
     # start workers
     subprocesses = []
@@ -100,16 +96,17 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["ubf_context"] = UBF_TASK
         kwargs["retry_count"] = str(retry_count)
 
-        cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
-        step_cli = u" ".join(cmd)
+        step_cmds = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+
         # Print cmdline for execution. Doesn't work without the temporary
         # unicode object while using `print`.
+        print("Original executable", sys.executable)
         print(
             u"[${cwd}] Starting split#{split} with cmd:{cmd}".format(
-                cwd=os.getcwd(), split=node_index, cmd=step_cli
+                cwd=os.getcwd(), split=node_index, cmd=" ".join(step_cmds)
             )
         )
-        p = subprocess.Popen(cmd)
+        p = subprocess.Popen(step_cmds, shell=True)
         subprocesses.append(p)
 
     flow._control_mapper_tasks = [

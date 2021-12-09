@@ -69,8 +69,8 @@ def generate_rfc1123_name(flow_name, run_id, step_name, task_id, attempt):
     else:
         sanitized_long_name = long_name.replace("_", "-").lower()
 
-    # the name has to be under 63 chars total
-    return sanitized_long_name[:57] + "-" + hash[:5]
+    # the name has to be under 57 chars total
+    return sanitized_long_name[:50] + "-" + hash[:5]
 
 
 LABEL_VALUE_REGEX = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-\_\.]{0,61}[a-zA-Z0-9])?$")
@@ -165,7 +165,10 @@ class Kubernetes(object):
         # We lose the last logs in this scenario.
         #
         # TODO: Find a way to capture hard exit logs in Kubernetes.
-        cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
+        cmd_str += (
+            "c=$?; echo $c; mflog 'Going to write logs. ';  %s; mflog 'Done writing logs. Sleeping 60;'; exit $c"
+            % BASH_SAVE_LOGS
+        )
         return shlex.split('bash -c "%s"' % cmd_str)
 
     def launch_job(self, **kwargs):
@@ -188,6 +191,7 @@ class Kubernetes(object):
         disk=None,
         memory=None,
         run_time_limit=None,
+        num_parallel=None,
         env={},
     ):
         # TODO: Test for DNS-1123 compliance. Python names can have underscores
@@ -231,6 +235,7 @@ class Kubernetes(object):
                 timeout_in_seconds=run_time_limit,
                 # Retries are handled by Metaflow runtime
                 retries=0,
+                num_parallel=num_parallel,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -253,6 +258,7 @@ class Kubernetes(object):
             .label("metaflow/step_name", sanitize_label_value(self._step_name))
             .label("metaflow/task_id", sanitize_label_value(self._task_id))
             .label("metaflow/attempt", sanitize_label_value(self._attempt))
+            .task_id(self._task_id)
         )
 
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync

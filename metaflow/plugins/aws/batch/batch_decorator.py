@@ -324,15 +324,15 @@ class BatchDecorator(StepDecorator):
         """
         from metaflow import Step  # avoid circular dependency
 
-        t = time.time()
         TIMEOUT = 600
+        last_completion_timeout = time.time() + TIMEOUT
         print("Waiting for batch secondary tasks to finish")
-        while t + TIMEOUT > time.time():
+        while last_completion_timeout > time.time():
             time.sleep(2)
             try:
                 step_path = "%s/%s/%s" % (flow.name, current.run_id, step_name)
                 tasks = [task for task in Step(step_path)]
-                if len(tasks) == len(flow._control_mapper_tasks) - 1:
+                if len(tasks) == len(flow._control_mapper_tasks):
                     if all(
                         task.finished_at is not None for task in tasks
                     ):  # for some reason task.finished fails

@@ -42,7 +42,7 @@ class ParallelUBF(UnboundedForeachInput):
         self.num_parallel = num_parallel
 
     def __getitem__(self, item):
-        return item
+        return item or 0  # item is None for the control task, but it is also split 0
 
 
 class FlowSpec(object):
@@ -517,7 +517,7 @@ class FlowSpec(object):
                 raise InvalidNextException(msg)
             funcs.append(name)
 
-        if num_parallel:
+        if num_parallel is not None and num_parallel >= 1:
             if len(dsts) > 1:
                 raise InvalidNextException(
                     "Only one destination allowed when num_parallel used in self.next()"

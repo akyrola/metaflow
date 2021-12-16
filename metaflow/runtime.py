@@ -31,7 +31,11 @@ from .debug import debug
 from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
-from .unbounded_foreach import CONTROL_TASK_TAG, UBF_CONTROL, UBF_TASK
+from .unbounded_foreach import (
+    CONTROL_TASK_TAG,
+    UBF_CONTROL,
+    UBF_TASK,
+)
 
 MAX_WORKERS = 16
 MAX_NUM_SPLITS = 100
@@ -627,8 +631,13 @@ class Task(object):
         else:
             # task_id is preset only by persist_constants() or control tasks.
             if ubf_context == UBF_CONTROL:
+                tags = [CONTROL_TASK_TAG]
                 metadata.register_task_id(
-                    run_id, step, task_id, 0, sys_tags=[CONTROL_TASK_TAG]
+                    run_id,
+                    step,
+                    task_id,
+                    0,
+                    sys_tags=tags,
                 )
             else:
                 metadata.register_task_id(run_id, step, task_id, 0)
@@ -922,17 +931,22 @@ class CLIArgs(object):
         # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
         def _options(mapping):
             for k, v in mapping.items():
-                if v:
-                    # we need special handling for 'with' since it is a reserved
-                    # keyword in Python, so we call it 'decospecs' in click args
-                    if k == "decospecs":
-                        k = "with"
-                    k = k.replace("_", "-")
-                    v = v if isinstance(v, (list, tuple, set)) else [v]
-                    for value in v:
-                        yield "--%s" % k
-                        if not isinstance(value, bool):
-                            yield to_unicode(value)
+
+                # None or False arguments are ignored
+                # v needs to be explicitly False, not falsy, eg. 0 is an acceptable value
+                if v is None or v is False:
+                    continue
+
+                # we need special handling for 'with' since it is a reserved
+                # keyword in Python, so we call it 'decospecs' in click args
+                if k == "decospecs":
+                    k = "with"
+                k = k.replace("_", "-")
+                v = v if isinstance(v, (list, tuple, set)) else [v]
+                for value in v:
+                    yield "--%s" % k
+                    if not isinstance(value, bool):
+                        yield to_unicode(value)
 
         args = list(self.entrypoint)
         args.extend(_options(self.top_level_options))

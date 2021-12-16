@@ -63,8 +63,9 @@ class Batch(object):
         step_expr = " && ".join(
             [
                 capture_output_to_mflog(a)
-                for a in (environment.bootstrap_commands(step_name) + step_cmds)
+                for a in (environment.bootstrap_commands(step_name))
             ]
+            + step_cmds
         )
 
         # construct an entry point that
@@ -233,6 +234,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
         # instance and the remote AWS Batch instance assumes metadata is stored in DATASTORE_LOCAL_DIR
@@ -292,7 +294,7 @@ class Batch(object):
                 )
         job = self.create_job(
             step_name,
-            step_cli,
+            capture_output_to_mflog(step_cli),
             task_spec,
             code_package_sha,
             code_package_url,

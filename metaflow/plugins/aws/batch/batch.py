@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     BATCH_METADATA_SERVICE_HEADERS,
     BATCH_EMIT_TAGS,
+    DATASTORE_CARD_S3ROOT,
 )
 from metaflow.mflog.mflog import refine, set_should_persist
 from metaflow.mflog import (
@@ -180,7 +181,7 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
-        num_parallel=1,
+        num_parallel=0,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -234,6 +235,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable("METAFLOW_CARD_S3ROOT", DATASTORE_CARD_S3ROOT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
         # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync between the local user
@@ -281,7 +283,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         host_volumes=None,
-        num_parallel=1,
+        num_parallel=0,
         env={},
         attrs={},
     ):
@@ -332,8 +334,28 @@ class Batch(object):
                     if not child_jobs:
                         child_statuses = ""
                     else:
-                        child_statuses = " (child nodes: [{}])".format(
-                            ", ".join([child_job.status for child_job in child_jobs])
+                        status_keys = set(
+                            [child_job.status for child_job in child_jobs]
+                        )
+                        status_counts = [
+                            (
+                                status,
+                                len(
+                                    [
+                                        child_job.status == status
+                                        for child_job in child_jobs
+                                    ]
+                                ),
+                            )
+                            for status in status_keys
+                        ]
+                        child_statuses = " (parallel node status: [{}])".format(
+                            ", ".join(
+                                [
+                                    "{}:{}".format(status, num)
+                                    for (status, num) in sorted(status_counts)
+                                ]
+                            )
                         )
                     status = job.status
                     echo(

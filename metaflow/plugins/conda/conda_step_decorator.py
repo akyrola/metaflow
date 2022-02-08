@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 from hashlib import sha1
@@ -12,8 +13,8 @@ try:
 except:
     from urllib.parse import urlparse
 
-
 from metaflow.decorators import StepDecorator
+from metaflow.extension_support import EXT_PKG
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_PACKAGE_S3ROOT
@@ -244,12 +245,19 @@ class CondaStepDecorator(StepDecorator):
     def runtime_init(self, flow, graph, package, run_id):
         # Create a symlink to installed version of metaflow to execute user code against
         path_to_metaflow = os.path.join(get_metaflow_root(), "metaflow")
+        path_to_info = os.path.join(get_metaflow_root(), "INFO")
         self.metaflow_home = tempfile.mkdtemp(dir="/tmp")
         self.addl_paths = None
         os.symlink(path_to_metaflow, os.path.join(self.metaflow_home, "metaflow"))
+
+        # Also symlink the INFO version to properly propagate down version information
+        # from, for example, a step-function execution
+        if os.path.isfile(path_to_info):
+            os.symlink(path_to_info, os.path.join(self.metaflow_home, "INFO"))
+
         # Do the same for metaflow_extensions
         try:
-            import metaflow_extensions as m
+            m = importlib.import_module(EXT_PKG)
         except ImportError:
             # No additional check needed because if we are here, we already checked
             # for other issues when loading at the toplevel
@@ -260,7 +268,7 @@ class CondaStepDecorator(StepDecorator):
                 # Regular package
                 os.symlink(
                     custom_paths[0],
-                    os.path.join(self.metaflow_home, "metaflow_extensions"),
+                    os.path.join(self.metaflow_home, EXT_PKG),
                 )
             else:
                 # Namespace package; we don't symlink but add the additional paths

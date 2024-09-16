@@ -126,7 +126,7 @@ class PlayListFlow(FlowSpec):
         # Reassign relevant variables from our branches.
         self.playlist = inputs.genre_movies.movies
         self.bonus = inputs.bonus_movie.bonus
-
+        
         self.next(self.end)
 
     @step
@@ -135,6 +135,7 @@ class PlayListFlow(FlowSpec):
         Print out the playlist and bonus movie.
 
         """
+        print("Data %d", len(self.dataframe))
         print("Playlist for movies in genre '%s'" % self.genre)
         for pick, movie in enumerate(self.playlist, start=1):
             print("Pick %d: '%s'" % (pick, movie))
